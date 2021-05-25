@@ -1,12 +1,16 @@
 plugins {
     id 'com.android.library'
+    //jitpack插件
+    id 'com.github.dcendents.android-maven'
 }
+
+group='com.github.peace913'
 
 android {
     compileSdkVersion 29
 
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 14
         targetSdkVersion 29
         versionCode 1
         versionName "1.0"
