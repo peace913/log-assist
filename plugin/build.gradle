@@ -11,8 +11,20 @@ java {
 dependencies {
     implementation gradleApi()
     implementation localGroovy()
-    implementation 'com.android.tools.build:gradle-api:3.0.0'
-    implementation 'org.ow2.asm:6.0'
+    implementation 'com.android.tools.build:gradle:3.0.0'
+    implementation 'org.ow2.asm:asm:6.0'
     implementation 'org.ow2.asm:asm-commons:6.0'
     implementation 'commons-io:commons-io:2.6'
+}
+
+group 'com.peace'
+version '1.0.5-local'
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            pom.artifactId = 'android-log-assist-plugin'
+            repository(url: uri('../../repo'))
+        }
+    }
 }

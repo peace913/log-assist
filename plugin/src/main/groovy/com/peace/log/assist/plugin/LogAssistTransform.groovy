@@ -8,11 +8,11 @@ import com.android.build.api.transform.Status
 import com.android.build.api.transform.Transform
 import com.android.build.api.transform.TransformException
 import com.android.build.api.transform.TransformInvocation
+import com.android.ide.common.internal.WaitableExecutor
 import com.google.common.collect.Sets
 import com.peace.log.assist.plugin.util.Compressor
 import com.peace.log.assist.plugin.util.Decompressor
 import com.peace.log.assist.plugin.visitor.CommonClassVisitor
-import groovy.io.FileType
 import org.apache.commons.io.FileUtils
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger
@@ -20,6 +20,8 @@ import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
+
+import java.util.concurrent.Callable
 
 class LogAssistTransform extends Transform {
     static Logger logger
@@ -62,20 +64,37 @@ class LogAssistTransform extends Transform {
             transformInvocation.outputProvider.deleteAll()
         }
 
+        WaitableExecutor waitableExecutor = WaitableExecutor.useGlobalSharedThreadPool()
         transformInvocation.inputs.each {input ->
             input.directoryInputs.each {dirInput ->
-                traverseDir(transformInvocation, dirInput)
+                waitableExecutor.execute(new Callable<Object>() {
+                    @Override
+                    Object call() throws Exception {
+                        traverseDir(transformInvocation, dirInput)
+                        return null
+                    }
+                })
             }
 
             input.jarInputs.each {jarInput ->
-                traverseJar(transformInvocation, jarInput)
+                waitableExecutor.execute(new Callable<Object>() {
+                    @Override
+                    Object call() throws Exception {
+                        traverseJar(transformInvocation, jarInput)
+                        return null
+                    }
+                })
             }
         }
+        waitableExecutor.waitForTasksWithQuickFail(true)
     }
 
     private static void traverseDir(TransformInvocation transformInvocation, DirectoryInput dirInput) {
         def outDir = transformInvocation.outputProvider.getContentLocation(dirInput.name, dirInput.contentTypes, dirInput.scopes, Format.DIRECTORY)
         int pathLen = dirInput.file.toString().length()
+
+        String name = getProjectName(dirInput)
+        logger.lifecycle("name: $name")
 
         if (transformInvocation.incremental) {
             //增量编译
@@ -99,7 +118,7 @@ class LogAssistTransform extends Transform {
                             break
                         case Status.ADDED:
                         case Status.CHANGED:
-                            traverseClass("PROJECT", "", file, output)
+                            traverseClass("PROJECT", name, file, output)
                             break
                     }
                 }
@@ -110,7 +129,7 @@ class LogAssistTransform extends Transform {
                 dirInput.file.traverse {File file ->
                     def path = "${file.toString().substring(pathLen)}"
                     def output = new File(outDir, path)
-                    traverseClass("PROJECT", "", file, output)
+                    traverseClass("PROJECT", name, file, output)
                 }
             }
         }
@@ -157,7 +176,7 @@ class LogAssistTransform extends Transform {
 
     private static boolean needInject(String className) {
         switch (className) {
-            case 'com/peace/log/assist/LogAssist':
+            case 'com/peace/log/assist/LogAssistService':
                 return false
         }
 
@@ -170,15 +189,18 @@ class LogAssistTransform extends Transform {
         }
 
         if (transformInvocation.incremental) {
+            def dest = transformInvocation.outputProvider.getContentLocation(jarInput.name, jarInput.contentTypes, jarInput.scopes, Format.JAR)
             switch (jarInput.status) {
                 case Status.REMOVED:
-                    def dest = transformInvocation.outputProvider.getContentLocation(jarInput.name, jarInput.contentTypes, jarInput.scopes, Format.JAR)
                     if (dest.exists()) {
                         FileUtils.forceDelete(dest)
                     }
                     break
                 case Status.ADDED:
                 case Status.CHANGED:
+                    if (dest.exists()) {
+                        FileUtils.forceDelete(dest)
+                    }
                     injectJar(transformInvocation, jarInput)
                     break
             }
@@ -208,7 +230,7 @@ class LogAssistTransform extends Transform {
         }
 
         //文件处理
-        unzipDir.eachFileRecurse(FileType.ANY, {
+        unzipDir.eachFileRecurse({
             File outputFile = new File(repackageDir, it.absolutePath.split('_unzip')[1])
 
             if (it.isDirectory()) {
@@ -222,6 +244,9 @@ class LogAssistTransform extends Transform {
 
                 String scope = ""
                 switch (jarInput.scopes[0]) {
+                    case QualifiedContent.Scope.PROJECT:
+                        scope = "PROJECT"
+                        break
                     case QualifiedContent.Scope.SUB_PROJECTS:
                         scope = "MODULE"
                         break
@@ -236,5 +261,18 @@ class LogAssistTransform extends Transform {
         def dest = transformInvocation.outputProvider.getContentLocation(jarInput.name, jarInput.contentTypes, jarInput.scopes, Format.JAR)
         Compressor cp = new Compressor(dest.absolutePath)
         cp.compress(repackageDir.absolutePath)
+    }
+
+    private static String getProjectName(DirectoryInput dirInput) {
+        File dirFile = dirInput.file
+        while (dirFile != null && dirFile.name != 'build') {
+            dirFile = dirFile.parentFile
+        }
+
+        if (dirFile != null && dirFile.name == 'build') {
+            return dirFile.parentFile.name
+        }
+
+        return ""
     }
 }

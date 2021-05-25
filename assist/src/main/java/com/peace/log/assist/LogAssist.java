@@ -1,59 +1,39 @@
 package com.peace.log.assist;
 
-public class LogAssist {
-    public static int v(String tag, String msg, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+public class LogAssist implements LogListener {
+    private LogListener mLogListener;
+    private boolean mShowArtifact = true;
+    private LogAssist() {
+
     }
 
-    public static int v(String tag, String msg, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+    public static LogAssist getInstance() {
+        return SingletonHolder.instance;
     }
 
-    public static int d(String tag, String msg, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+    public void showArtifactInfo(boolean show) {
+        mShowArtifact = show;
     }
 
-    public static int d(String tag, String msg, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+    public boolean isShowArtifact() {
+        return mShowArtifact;
     }
 
-    public static int i(String tag, String msg, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+    public void setLogListener(LogListener listener) {
+        mLogListener = listener;
     }
 
-    public static int i(String tag, String msg, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+    @Override
+    public boolean onLogArrived(int level, String tag, String msg, Throwable throwable, String scope, String sdkName, String className, String methodName, int line) {
+        if (mLogListener != null) {
+            return mLogListener.onLogArrived(level, tag, msg, throwable, scope, sdkName, className, methodName, line);
+        }
+
+        return false;
     }
 
-    public static int w(String tag, String msg, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
 
-    public static int w(String tag, String msg, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
-
-    public static int w(String tag, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
-
-    public static int e(String tag, String msg, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
-
-    public static int e(String tag, String msg, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
-
-    public static int wtf(String tag, String msg, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
-
-    public static int wtf(String tag, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
-    }
-
-    public static int wtf(String tag, String msg, Throwable tr, String scope, String sdkName, String className, String methodName, int lineNum) {
-        throw new RuntimeException("Stub!");
+    private static class SingletonHolder {
+        private static final LogAssist instance = new LogAssist();
     }
 }

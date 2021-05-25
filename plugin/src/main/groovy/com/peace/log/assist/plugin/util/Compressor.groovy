@@ -50,7 +50,7 @@ class Compressor {
         }
     }
 
-    private void compressFile(File file, ZipOutputStream zos, String baseDir) {
+    private static void compressFile(File file, ZipOutputStream zos, String baseDir) {
         if (!file.exists()) {
             return
         }

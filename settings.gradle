@@ -1,0 +1,4 @@
+rootProject.name = 'log-assist'
+include ':app'
+include ':assist'
+include ':plugin'
