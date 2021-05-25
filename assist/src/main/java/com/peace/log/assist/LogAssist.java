@@ -1,6 +1,6 @@
 package com.peace.log.assist;
 
-public class LogAssist implements LogListener {
+public class LogAssist {
     private LogListener mLogListener;
     private boolean mShowArtifact = true;
     private LogAssist() {
@@ -23,8 +23,7 @@ public class LogAssist implements LogListener {
         mLogListener = listener;
     }
 
-    @Override
-    public boolean onLogArrived(int level, String tag, String msg, Throwable throwable, String scope, String sdkName, String className, String methodName, int line) {
+    boolean onLogArrived(int level, String tag, String msg, Throwable throwable, String scope, String sdkName, String className, String methodName, int line) {
         if (mLogListener != null) {
             return mLogListener.onLogArrived(level, tag, msg, throwable, scope, sdkName, className, methodName, line);
         }

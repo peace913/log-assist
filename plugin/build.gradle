@@ -18,7 +18,7 @@ dependencies {
 }
 
 group 'com.peace'
-version '1.0.5-local'
+version '1.0.8-local'
 
 uploadArchives {
     repositories {

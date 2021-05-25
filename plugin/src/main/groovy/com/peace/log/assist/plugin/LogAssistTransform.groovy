@@ -94,7 +94,6 @@ class LogAssistTransform extends Transform {
         int pathLen = dirInput.file.toString().length()
 
         String name = getProjectName(dirInput)
-        logger.lifecycle("name: $name")
 
         if (transformInvocation.incremental) {
             //增量编译
