@@ -1,10 +1,16 @@
 # log-assist
-log-assist is a tool to help developers to find where output the logs. Like
+log-assist通过对App输出的每条日志增加一些辅助信息，让开发者可以更方便的定位到是哪里输出的日志. 输出的日志格式如下：
 ```text
 2021-05-25 19:52:44.951 5561-5561/com.peace.log.assist.app W/tag: w (scope: PROJECT, name: app, class: com.peace.log.assist.MainActivity.java, method: onCreate, line: 31)
 ```
+其中各字段含义如下：
++ scope: 输出日志的范围，包含三类，PROJECT（app）、MODULE（module）、JAR（第三方SDK）
++ name: 对应的module名字或者sdk的名字
++ class: 输出日志的类名
++ method: 输出日志的方法名
++ line: 输出日志对应的代码行号
 
-### Use
+### 使用
 The first, add the plugin in your project root build.gradle.add
 ```groovy
 buildscript {
