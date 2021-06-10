@@ -1,8 +1,12 @@
 package com.peace.log.assist;
 
+import android.util.Log;
+
 public class LogAssist {
     private LogListener mLogListener;
     private boolean mShowArtifact = true;
+    private int mAssistLogLevel = Log.VERBOSE;
+
     private LogAssist() {
 
     }
@@ -11,12 +15,22 @@ public class LogAssist {
         return SingletonHolder.instance;
     }
 
-    public void showArtifactInfo(boolean show) {
+    public LogAssist showArtifactInfo(boolean show) {
         mShowArtifact = show;
+        return this;
     }
 
-    public boolean isShowArtifact() {
+    public LogAssist setAssistLogLevel(int level) {
+        mAssistLogLevel = level;
+        return this;
+    }
+
+    boolean isShowArtifact() {
         return mShowArtifact;
+    }
+
+    int getAssistLogLevel() {
+        return mAssistLogLevel;
     }
 
     public void setLogListener(LogListener listener) {
