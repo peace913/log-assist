@@ -44,6 +44,10 @@ implementation 'com.github.peace913.log-assist:assist:1.2.0'
 ```java
 LogAssist.getInstance().showArtifactInfo(false);
 ```
+如果你需要控制增加辅助信息的日志级别(默认是Log.VERBOSE), 需要下面接口来设置。
+```java
+LogAssist.getInstance().setAssistLogLevel(Log.WARN); //仅WARN及以上日志会增加辅助信息
+```
 sdk还提供了LogListener接口来方便您控制日志的输出。
 如果你需要控制日志按日志级别显示，可以参考如下代码，仅输出WARN及以上级别的日志。
 ```java
