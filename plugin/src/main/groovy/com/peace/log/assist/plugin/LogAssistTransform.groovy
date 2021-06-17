@@ -1,5 +1,6 @@
 package com.peace.log.assist.plugin
 
+import com.android.SdkConstants
 import com.android.build.api.transform.DirectoryInput
 import com.android.build.api.transform.Format
 import com.android.build.api.transform.JarInput
@@ -10,10 +11,10 @@ import com.android.build.api.transform.TransformException
 import com.android.build.api.transform.TransformInvocation
 import com.android.ide.common.internal.WaitableExecutor
 import com.google.common.collect.Sets
-import com.peace.log.assist.plugin.util.Compressor
-import com.peace.log.assist.plugin.util.Decompressor
+import com.google.common.io.Files
 import com.peace.log.assist.plugin.visitor.CommonClassVisitor
 import org.apache.commons.io.FileUtils
+import org.codehaus.groovy.runtime.DefaultGroovyMethodsSupport
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger
 import org.objectweb.asm.ClassReader
@@ -22,6 +23,9 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes
 
 import java.util.concurrent.Callable
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 class LogAssistTransform extends Transform {
     static Logger logger
@@ -117,7 +121,7 @@ class LogAssistTransform extends Transform {
                             break
                         case Status.ADDED:
                         case Status.CHANGED:
-                            traverseClass("PROJECT", name, file, output)
+                            transformClass("PROJECT", name, file, output)
                             break
                     }
                 }
@@ -128,13 +132,13 @@ class LogAssistTransform extends Transform {
                 dirInput.file.traverse {File file ->
                     def path = "${file.toString().substring(pathLen)}"
                     def output = new File(outDir, path)
-                    traverseClass("PROJECT", name, file, output)
+                    transformClass("PROJECT", name, file, output)
                 }
             }
         }
     }
 
-    private static void traverseClass(String scope, String sdkName, File inputFile, File outputFile) {
+    private static void transformClass(String scope, String sdkName, File inputFile, File outputFile) {
         if (inputFile.exists()) {
             if (inputFile.isDirectory()) {
                 if (!outputFile.exists()) {
@@ -145,32 +149,40 @@ class LogAssistTransform extends Transform {
                     outputFile.parentFile.mkdirs()
                 }
 
-                injectClass(scope, sdkName, inputFile, outputFile)
+                if (!inputFile.name.endsWith(SdkConstants.DOT_CLASS)) {
+                    //资源文件直接复制
+                    outputFile.bytes = inputFile.bytes
+                    return
+                }
+
+                FileInputStream fis = null
+                FileOutputStream fos = null
+                try {
+                    fis = new FileInputStream(inputFile)
+                    fos = new FileOutputStream(outputFile)
+                    injectClass(scope, sdkName, fis, fos)
+                } finally {
+                    DefaultGroovyMethodsSupport.closeWithWarning(fis)
+                    DefaultGroovyMethodsSupport.closeWithWarning(fos)
+                }
             }
         }
     }
 
-    private static void injectClass(String scope, String sdkName, File input, File output) {
-        if (!input.exists()) {
-            return
-        }
+    private static void injectClass(String scope, String sdkName, InputStream inputStream, OutputStream output) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream()
+        transferBytes(inputStream, baos)
+        byte [] input = baos.toByteArray()
 
-        if (!input.name.endsWith('.class')) {
-            output.bytes = input.bytes
-            return
-        }
-
-        def inputStream = new FileInputStream(input)
-        ClassReader cr = new ClassReader(inputStream)
+        ClassReader cr = new ClassReader(input)
         if (needInject(cr.getClassName())) {
             ClassWriter cw = new ClassWriter(cr, ClassWriter.COMPUTE_MAXS)
             ClassVisitor cv = new CommonClassVisitor(Opcodes.ASM6, cw, scope, sdkName)
             cr.accept(cv, 0)
-            output.bytes = cw.toByteArray()
+            output.write(cw.toByteArray())
         } else {
-            output.bytes = input.bytes
+            output.write(input)
         }
-        inputStream.close()
     }
 
     private static boolean needInject(String className) {
@@ -200,66 +212,58 @@ class LogAssistTransform extends Transform {
                     if (dest.exists()) {
                         FileUtils.forceDelete(dest)
                     }
-                    injectJar(transformInvocation, jarInput)
+                    transformJar(transformInvocation, jarInput)
                     break
             }
         } else {
-            injectJar(transformInvocation, jarInput)
+            transformJar(transformInvocation, jarInput)
         }
     }
 
-    private static void injectJar(TransformInvocation transformInvocation, JarInput jarInput) {
-        def jarName = jarInput.file.name
+    private void transformJar(TransformInvocation transformInvocation, JarInput jarInput)
+            throws IOException {
+        File outputJar = transformInvocation.outputProvider.getContentLocation(jarInput.name, jarInput.contentTypes, jarInput.scopes, Format.JAR)
+        Files.createParentDirs(outputJar)
 
-        if (jarName.endsWith('.jar')) {
-            jarName = jarName.substring(0, jarName.indexOf('.jar'))
+        String scope = ""
+        switch (jarInput.scopes[0]) {
+            case QualifiedContent.Scope.PROJECT:
+                scope = "PROJECT"
+                break
+            case QualifiedContent.Scope.SUB_PROJECTS:
+                scope = "MODULE"
+                break
+            case QualifiedContent.Scope.EXTERNAL_LIBRARIES:
+                scope = "JAR"
+                break
         }
 
-        File unzipDir = new File(jarInput.file.getParent(), jarName + '_unzip')
-        if (unzipDir.exists()) {
-            FileUtils.forceDelete(unzipDir)
-        }
+        ZipInputStream zis = null
+        ZipOutputStream zos = null
+        try {
+            FileInputStream fis = new FileInputStream(inputJar)
+            zis = new ZipInputStream(fis)
+            FileOutputStream fos = new FileOutputStream(outputJar)
+            zos = new ZipOutputStream(fos)
+            ZipEntry entry = zis.getNextEntry()
 
-        unzipDir.mkdirs()
-        Decompressor.uncompress(jarInput.file, unzipDir)
-
-        File repackageDir = new File(jarInput.file.getParent(), jarName + '_repackage')
-        if (repackageDir.exists()) {
-            FileUtils.forceDelete(repackageDir)
-        }
-
-        //文件处理
-        unzipDir.eachFileRecurse({
-            File outputFile = new File(repackageDir, it.absolutePath.split('_unzip')[1])
-
-            if (it.isDirectory()) {
-                if (!outputFile.exists()) {
-                    outputFile.mkdirs()
+            while (entry != null) {
+                if (!entry.isDirectory()) {
+                    if (entry.getName().endsWith(SdkConstants.DOT_CLASS) ) {
+                        zos.putNextEntry(new ZipEntry(entry.getName()))
+                        injectClass(scope, jarInput.name, zis, zos)
+                    } else {
+                        //资源文件直接复制
+                        zos.putNextEntry(new ZipEntry(entry.getName()))
+                        transferBytes(zio, zos)
+                    }
                 }
-            } else {
-                if (!outputFile.parentFile.exists()) {
-                    outputFile.parentFile.mkdirs()
-                }
-
-                String scope = ""
-                switch (jarInput.scopes[0]) {
-                    case QualifiedContent.Scope.PROJECT:
-                        scope = "PROJECT"
-                        break
-                    case QualifiedContent.Scope.SUB_PROJECTS:
-                        scope = "MODULE"
-                        break
-                    case QualifiedContent.Scope.EXTERNAL_LIBRARIES:
-                        scope = "JAR"
-                        break
-                }
-                injectClass(scope, jarName, it, outputFile)
+                entry = zis.getNextEntry()
             }
-        })
-
-        def dest = transformInvocation.outputProvider.getContentLocation(jarInput.name, jarInput.contentTypes, jarInput.scopes, Format.JAR)
-        Compressor cp = new Compressor(dest.absolutePath)
-        cp.compress(repackageDir.absolutePath)
+        } finally {
+            DefaultGroovyMethodsSupport.closeWithWarning(zis)
+            DefaultGroovyMethodsSupport.closeWithWarning(zos)
+        }
     }
 
     private static String getProjectName(DirectoryInput dirInput) {
@@ -273,5 +277,16 @@ class LogAssistTransform extends Transform {
         }
 
         return ""
+    }
+
+    private static void transferBytes(InputStream is, OutputStream os) throws IOException {
+        // reading the content of the file within a byte buffer
+        byte[] byteBuffer = new byte[8192]
+        int nbByteRead /* = 0*/
+
+        while ((nbByteRead = is.read(byteBuffer)) != -1) {
+            // appends buffer
+            os.write(byteBuffer, 0, nbByteRead)
+        }
     }
 }
