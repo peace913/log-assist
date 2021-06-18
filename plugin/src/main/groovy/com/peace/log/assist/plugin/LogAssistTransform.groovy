@@ -108,7 +108,7 @@ class LogAssistTransform extends Transform {
                 for (Map.Entry<File, Status> entry : changedFiles.entrySet()) {
                     file = entry.key
                     status = entry.value
-                    logger.info("changedFile: ${file.name}, status: ${status}, exist: ${file.exists()}")
+                    logger.info("changedFile: ${file.name}, status: ${status}}")
 
                     def path = "${file.toString().substring(pathLen)}"
                     def output = new File(outDir, path)
@@ -121,7 +121,7 @@ class LogAssistTransform extends Transform {
                             break
                         case Status.ADDED:
                         case Status.CHANGED:
-                            transformClass("PROJECT", name, file, output)
+                            transformFile("PROJECT", name, file, output)
                             break
                     }
                 }
@@ -132,13 +132,13 @@ class LogAssistTransform extends Transform {
                 dirInput.file.traverse {File file ->
                     def path = "${file.toString().substring(pathLen)}"
                     def output = new File(outDir, path)
-                    transformClass("PROJECT", name, file, output)
+                    transformFile("PROJECT", name, file, output)
                 }
             }
         }
     }
 
-    private static void transformClass(String scope, String sdkName, File inputFile, File outputFile) {
+    private static void transformFile(String scope, String sdkName, File inputFile, File outputFile) {
         if (inputFile.exists()) {
             if (inputFile.isDirectory()) {
                 if (!outputFile.exists()) {
@@ -220,8 +220,9 @@ class LogAssistTransform extends Transform {
         }
     }
 
-    private void transformJar(TransformInvocation transformInvocation, JarInput jarInput)
+    private static void transformJar(TransformInvocation transformInvocation, JarInput jarInput)
             throws IOException {
+        logger.info("changedJar: ${jarInput.file}, status: ${jarInput.status.name()}}")
         File outputJar = transformInvocation.outputProvider.getContentLocation(jarInput.name, jarInput.contentTypes, jarInput.scopes, Format.JAR)
         Files.createParentDirs(outputJar)
 
@@ -241,7 +242,7 @@ class LogAssistTransform extends Transform {
         ZipInputStream zis = null
         ZipOutputStream zos = null
         try {
-            FileInputStream fis = new FileInputStream(inputJar)
+            FileInputStream fis = new FileInputStream(jarInput.file)
             zis = new ZipInputStream(fis)
             FileOutputStream fos = new FileOutputStream(outputJar)
             zos = new ZipOutputStream(fos)
@@ -255,7 +256,7 @@ class LogAssistTransform extends Transform {
                     } else {
                         //资源文件直接复制
                         zos.putNextEntry(new ZipEntry(entry.getName()))
-                        transferBytes(zio, zos)
+                        transferBytes(zis, zos)
                     }
                 }
                 entry = zis.getNextEntry()
