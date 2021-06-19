@@ -19,7 +19,7 @@ buildscript {
         maven { url 'https://jitpack.io'} //需要增加maven库
     }
     dependencies {
-        classpath 'com.github.peace913.log-assist:plugin:1.2.0' //增加assist的依赖
+        classpath 'com.github.peace913.log-assist:plugin:1.4.0' //增加assist的依赖
     }
 }
 
@@ -37,7 +37,7 @@ apply plugin: 'com.peace.log.assist'
 ```
 最后，在app目录下的build.gradle中增加assist sdk的依赖。如果你的工程有很多module，仅需要在app目录下增加依赖。
 ```groovy
-implementation 'com.github.peace913.log-assist:assist:1.2.0'
+implementation 'com.github.peace913.log-assist:assist:1.4.0'
 ```
 ### 设置
 1. 如果你不需要现实scope信息(默认显示), 需要下面接口来开启/关闭。
